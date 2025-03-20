@@ -12,8 +12,6 @@ from __future__ import absolute_import, division, unicode_literals
 
 import threading
 from collections import deque
-from sys import exc_info
-from traceback import format_stack
 
 from .utils import (
     THUMB_TYPES,
@@ -42,12 +40,13 @@ from ...kodion.items import (
     VideoItem,
     menu_items,
 )
-from ...kodion.utils import datetime_parser, strip_html_from_text
+from ...kodion.utils import datetime_parser, format_stack, strip_html_from_text
 
 
 def _process_list_response(provider,
                            context,
                            json_data,
+                           allow_duplicates=True,
                            item_filter=None,
                            progress_dialog=None):
     yt_items = json_data.get('items', [])
@@ -208,7 +207,7 @@ def _process_list_response(provider,
                                  image=image,
                                  fanart=fanart,
                                  plot=description,
-                                 category_label = title,
+                                 category_label=title,
                                  channel_id=item_id,
                                  subscription_id=subscription_id)
             channel_id_dict[item_id] = item
@@ -367,7 +366,10 @@ def _process_list_response(provider,
             item.set_track_number(position + 1)
             item_id = item.video_id
             if item_id in video_id_dict:
-                fifo_queue = video_id_dict[item_id]
+                if allow_duplicates:
+                    fifo_queue = video_id_dict[item_id]
+                else:
+                    continue
             else:
                 fifo_queue = deque()
                 video_id_dict[item_id] = fifo_queue
@@ -489,21 +491,10 @@ def _process_list_response(provider,
 
             updater(*resource['upd_args'], **kwargs)
         except Exception as exc:
-            tb_obj = exc_info()[2]
-            while tb_obj:
-                next_tb_obj = tb_obj.tb_next
-                if next_tb_obj:
-                    tb_obj = next_tb_obj
-                else:
-                    stack = ''.join(format_stack(f=tb_obj.tb_frame))
-                    break
-            else:
-                stack = None
-
             msg = ('v3._process_list_response._fetch - Error'
                    '\n\tException: {exc!r}'
                    '\n\tStack trace (most recent call last):\n{stack}'
-                   .format(exc=exc, stack=stack))
+                   .format(exc=exc, stack=format_stack()))
             context.log_error(msg)
         finally:
             resource['complete'] = True
@@ -593,6 +584,7 @@ def response_to_items(provider,
                       json_data,
                       sort=None,
                       reverse=False,
+                      allow_duplicates=True,
                       process_next_page=True,
                       item_filter=None):
     params = context.get_params()
@@ -633,6 +625,7 @@ def response_to_items(provider,
                 provider,
                 context,
                 json_data,
+                allow_duplicates=allow_duplicates,
                 item_filter=_item_filter,
                 progress_dialog=progress_dialog,
             )

@@ -15,12 +15,11 @@ import pickle
 import sqlite3
 import time
 from threading import Lock
-from traceback import format_stack
 
 from ..compatibility import to_str
 from ..logger import Logger
 from ..utils.datetime_parser import fromtimestamp, since_epoch
-from ..utils.methods import make_dirs
+from ..utils.methods import format_stack, make_dirs
 
 
 class Storage(object):
@@ -180,11 +179,11 @@ class Storage(object):
             self._base = self.__class__
 
         if migrate or not self._sql:
-            statements = {
-                name: sql.format(table=self._table_name,
-                                 order_col='time' if migrate else 'timestamp')
+            statements = [
+                (name, sql.format(table=self._table_name,
+                                  order_col='time' if migrate else 'timestamp'))
                 for name, sql in Storage._sql.items()
-            }
+            ]
             self._base._sql.update(statements)
         elif self._sql and '_partial' in self._sql:
             statements = {
@@ -192,12 +191,12 @@ class Storage(object):
                                  order_col='timestamp')
                 for name, sql in Storage._sql.items()
             }
-            partial_statements = {
-                name: sql.format(table=self._table_name,
-                                 order_col='timestamp')
+            partial_statements = [
+                (name, sql.format(table=self._table_name,
+                                  order_col='timestamp'))
                 for name, sql in self._base._sql.items()
                 if not name.startswith('_')
-            }
+            ]
             statements.update(partial_statements)
             self._base._sql = statements
 
@@ -237,7 +236,7 @@ class Storage(object):
                        '\n\tException: {exc!r}'
                        '\n\tStack trace (most recent call last):\n{stack}'
                        .format(exc=exc,
-                               stack=''.join(format_stack())))
+                               stack=format_stack()))
                 if isinstance(exc, sqlite3.OperationalError):
                     Logger.log_warning(msg)
                     time.sleep(0.1)
@@ -316,7 +315,7 @@ class Storage(object):
                        '\n\tException: {exc!r}'
                        '\n\tStack trace (most recent call last):\n{stack}'
                        .format(exc=exc,
-                               stack=''.join(format_stack())))
+                               stack=format_stack()))
                 if isinstance(exc, sqlite3.OperationalError):
                     Logger.log_warning(msg)
                     time.sleep(0.1)
